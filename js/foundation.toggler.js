@@ -1,45 +1,50 @@
+'use strict';
+
+import $ from 'jquery';
+import { Motion } from './foundation.util.motion';
+import { Plugin } from './foundation.core.plugin';
+import { RegExpEscape } from './foundation.core.utils';
+import { Triggers } from './foundation.util.triggers';
+
 /**
  * Toggler module.
  * @module foundation.toggler
  * @requires foundation.util.motion
+ * @requires foundation.util.triggers
  */
 
-!function(Foundation, $) {
-  'use strict';
-
+class Toggler extends Plugin {
   /**
    * Creates a new instance of Toggler.
    * @class
+   * @name Toggler
    * @fires Toggler#init
    * @param {Object} element - jQuery object to add the trigger to.
    * @param {Object} options - Overrides to the default plugin settings.
    */
-  function Toggler(element, options) {
+  _setup(element, options) {
     this.$element = element;
     this.options = $.extend({}, Toggler.defaults, element.data(), options);
     this.className = '';
+    this.className = 'Toggler'; // ie9 back compat
+
+    // Triggers init is idempotent, just need to make sure it is initialized
+    Triggers.init($);
 
     this._init();
     this._events();
-
-    Foundation.registerPlugin(this);
   }
-
-  Toggler.defaults = {
-    /**
-     * Tells the plugin if the element should animated when toggled.
-     * @option
-     * @example false
-     */
-    animate: false
-  };
 
   /**
    * Initializes the Toggler plugin by parsing the toggle class from data-toggler, or animation classes from data-animate.
    * @function
    * @private
    */
-  Toggler.prototype._init = function() {
+  _init() {
+    // Collect triggers to set ARIA attributes to
+    var id = this.$element[0].id,
+      $triggers = $(`[data-open~="${id}"], [data-close~="${id}"], [data-toggle~="${id}"]`);
+
     var input;
     // Parse animation classes if they were set
     if (this.options.animate) {
@@ -47,30 +52,41 @@
 
       this.animationIn = input[0];
       this.animationOut = input[1] || null;
+
+      // - aria-expanded: according to the element visibility.
+      $triggers.attr('aria-expanded', !this.$element.is(':hidden'));
     }
     // Otherwise, parse toggle class
     else {
-      input = this.$element.data('toggler');
+      input = this.options.toggler;
+      if (typeof input !== 'string' || !input.length) {
+        throw new Error(`The 'toogler' option containing the target class is required, got "${input}"`);
+      }
       // Allow for a . at the beginning of the string
       this.className = input[0] === '.' ? input.slice(1) : input;
+
+      // - aria-expanded: according to the elements class set.
+      $triggers.attr('aria-expanded', this.$element.hasClass(this.className));
     }
 
-    // Add ARIA attributes to triggers
-    var id = this.$element[0].id;
-    $('[data-open="'+id+'"], [data-close="'+id+'"], [data-toggle="'+id+'"]')
-      .attr('aria-controls', id);
-    // If the target is hidden, add aria-hidden
-    this.$element.attr('aria-expanded', this.$element.is(':hidden') ? false : true);
-  };
+    // - aria-controls: adding the element id to it if not already in it.
+    $triggers.each((index, trigger) => {
+      const $trigger = $(trigger);
+      const controls = $trigger.attr('aria-controls') || '';
+
+      const containsId = new RegExp(`\\b${RegExpEscape(id)}\\b`).test(controls);
+      if (!containsId) $trigger.attr('aria-controls', controls ? `${controls} ${id}` : id);
+    });
+  }
 
   /**
    * Initializes events for the toggle trigger.
    * @function
    * @private
    */
-  Toggler.prototype._events = function() {
+  _events() {
     this.$element.off('toggle.zf.trigger').on('toggle.zf.trigger', this.toggle.bind(this));
-  };
+  }
 
   /**
    * Toggles the target class on the target element. An event is fired from the original trigger depending on if the resultant state was "on" or "off".
@@ -78,11 +94,11 @@
    * @fires Toggler#on
    * @fires Toggler#off
    */
-  Toggler.prototype.toggle = function() {
+  toggle() {
     this[ this.options.animate ? '_toggleAnimate' : '_toggleClass']();
-  };
+  }
 
-  Toggler.prototype._toggleClass = function() {
+  _toggleClass() {
     this.$element.toggleClass(this.className);
 
     var isOn = this.$element.hasClass(this.className);
@@ -102,46 +118,59 @@
     }
 
     this._updateARIA(isOn);
-  };
+    this.$element.find('[data-mutate]').trigger('mutateme.zf.trigger');
+  }
 
-  Toggler.prototype._toggleAnimate = function() {
+  _toggleAnimate() {
     var _this = this;
 
     if (this.$element.is(':hidden')) {
-      Foundation.Motion.animateIn(this.$element, this.animationIn, function() {
-        this.trigger('on.zf.toggler');
+      Motion.animateIn(this.$element, this.animationIn, function() {
         _this._updateARIA(true);
+        this.trigger('on.zf.toggler');
+        this.find('[data-mutate]').trigger('mutateme.zf.trigger');
       });
     }
     else {
-      Foundation.Motion.animateOut(this.$element, this.animationOut, function() {
-        this.trigger('off.zf.toggler');
+      Motion.animateOut(this.$element, this.animationOut, function() {
         _this._updateARIA(false);
+        this.trigger('off.zf.toggler');
+        this.find('[data-mutate]').trigger('mutateme.zf.trigger');
       });
     }
-  };
+  }
 
-  Toggler.prototype._updateARIA = function(isOn) {
-    this.$element.attr('aria-expanded', isOn ? true : false);
-  };
+  _updateARIA(isOn) {
+    var id = this.$element[0].id;
+    $(`[data-open="${id}"], [data-close="${id}"], [data-toggle="${id}"]`)
+      .attr({
+        'aria-expanded': isOn ? true : false
+      });
+  }
 
   /**
    * Destroys the instance of Toggler on the element.
    * @function
    */
-  Toggler.prototype.destroy= function() {
+  _destroy() {
     this.$element.off('.zf.toggler');
-    Foundation.unregisterPlugin(this);
-  };
+  }
+}
 
-  Foundation.plugin(Toggler, 'Toggler');
+Toggler.defaults = {
+  /**
+   * Class of the element to toggle. It can be provided with or without "."
+   * @option
+   * @type {string}
+   */
+  toggler: undefined,
+  /**
+   * Tells the plugin if the element should animated when toggled.
+   * @option
+   * @type {boolean}
+   * @default false
+   */
+  animate: false
+};
 
-  // Exports for AMD/Browserify
-  if (typeof module !== 'undefined' && typeof module.exports !== 'undefined')
-    module.exports = Toggler;
-  if (typeof define === 'function')
-    define(['foundation'], function() {
-      return Toggler;
-    });
-
-}(Foundation, jQuery);
+export {Toggler};

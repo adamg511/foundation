@@ -1,26 +1,32 @@
 ---
 title: Media Queries
 description: CSS media queries allow us to adjust the display and orientation of content at different screen sizes.
+video: gqqi2cqlST8
 sass: scss/util/_breakpoint.scss
 js: js/foundation.util.mediaQuery.js
 tags:
   - breakpoints
 ---
- 
+
+<div class="callout training-callout">
+  <p>Build better websites and apps, code cleaner, and become a better front-end developer with Foundation training. We're running two online webinar training sessions this month where we break down how to get the most out of Foundation and leap ahead skillwise.</p>
+  <a href="https://zurb.com/university/courses" target="_blank"> Get registered →</a>
+</div>
+
 ## Default Media Queries
 
 Foundation for Sites has three core breakpoints:
 
 - **Small:** any screen.
-- **Medium:** any screen 640 pixels or wider.
-- **Large:** any screen 1024 pixels or wider.
+- **Medium:** any screen 640 pixels or larger.
+- **Large:** any screen 1024 pixels or larger.
 
 Many components can be modified at different screen sizes using special *breakpoint classes*. The grid is the most obvious example. In the code below, the left-hand column is six columns wide on small screens, hence `.small-6`. On medium-sized screens, the class `.medium-4` overrides the small style, changing the column to be four wide.
 
 ```html
-<div class="row">
-  <div class="small-6 medium-4 columns"></div>
-  <div class="small-6 medium-8 columns"></div>
+<div class="grid-x grid-margin-x">
+  <div class="cell small-6 medium-4"></div>
+  <div class="cell small-6 medium-8"></div>
 </div>
 ```
 
@@ -47,7 +53,7 @@ If you're using the CSS version of Foundation, use these media queries to imitat
 
 ## Upgrading from Foundation 5
 
-In Foundation 5, breakpoints were accessed using a series of Sass variables named `$small-up`, `$small-only`, `$medium-only`, and so on. In Foundation 6, this method of writing media queries has been replaced with a dedicated [breakpoint mixin](#the-breakpoint-mixin), described below. **The legacy variables will be removed in Foundation 6.**
+In Foundation 5, breakpoints were accessed using a series of Sass variables named `$small-up`, `$small-only`, `$medium-only`, and so on. In Foundation 6, this method of writing media queries has been replaced with a dedicated [breakpoint mixin](#the-breakpoint-mixin), described below. **The legacy variables will be removed in Foundation 6.3.**
 
 To upgrade your existing media queries, replace rulesets like this:
 
@@ -165,6 +171,14 @@ The functionality of the `breakpoint()` mixin comes from an internal function, a
 }
 ```
 
+This can be used to combine multiple media queries together.
+
+```scss
+@media screen and #{breakpoint(medium)} and #{breakpoint(xlarge down)} {
+  // Medium to extra large styles
+}
+```
+
 ---
 
 ## JavaScript
@@ -173,19 +187,34 @@ The functionality of the `breakpoint()` mixin comes from an internal function, a
 
 The Foundation JavaScript includes a set of helper functions for working with media queries. They're all on the `Foundation.MediaQuery` object.
 
+<div class="callout warning">
+  The MediaQuery utility uses the Sass breakpoint settings and requires the Foundation CSS to be imported. For Sass users, you need to include either `foundation-everything()` or `foundation-global-styles()`.
+</div>
+
 Get the name of the current breakpoint with `MediaQuery.current`.
 
 ```js
 Foundation.MediaQuery.current // => 'small', 'medium', etc.
 ```
 
-To see if the screen is currently a certain breakpoint or larger, use `MediaQuery.atLeast`.
-
+You can use `MediaQuery.is()` to check the breakpoint the screen is at.
 ```js
-if (Foundation.MediaQuery.atLeast('medium')) {
-  // True if medium or large
-  // False if small
-}
+Foundation.MediaQuery.is('medium') // => True for "medium" or larger
+```
+
+You can also use the `up` (default), `only` and `down` modifiers like in Sass, or use the equivalent `MediaQuery.atLeast()`, `MediaQuery.only()` and `MediaQuery.upTo()`.
+```js
+// ↑ True for "medium" or larger (by default)
+Foundation.MediaQuery.is('medium up');
+Foundation.MediaQuery.atLeast('medium');
+
+// → True for "medium" only
+Foundation.MediaQuery.is('medium only');
+Foundation.MediaQuery.only('medium');
+
+// ↓ True for "medium" or larger
+Foundation.MediaQuery.is('medium down');
+Foundation.MediaQuery.upTo('medium');
 ```
 
 To get the media query of a breakpoint, use `MediaQuery.get`.
@@ -201,7 +230,7 @@ Foundation.MediaQuery.get('medium') // => only screen and (min-width: 640px)
 The media query helper broadcasts an event on the window every time the breakpoint changes. We use this internally with plugins like Interchange to detect a shift in breakpoint. You can also subscribe to the event yourself.
 
 ```js
-$(window).on('changed.zf.mediaquery', function(event, name) {
-  // name is the name of the breakpoint
+$(window).on('changed.zf.mediaquery', function(event, newSize, oldSize) {
+  // newSize is the name of the now-current breakpoint, oldSize is the previous breakpoint
 });
 ```
